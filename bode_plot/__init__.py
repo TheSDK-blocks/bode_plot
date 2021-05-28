@@ -40,7 +40,7 @@ if not (os.path.abspath('../../thesdk') in sys.path):
 from thesdk import *
 from rtl import *
 from spice import *
-
+import matplotlib.pyplot as plt
 import numpy as np
 
 class bode_plot(rtl,spice,thesdk):
@@ -49,7 +49,7 @@ class bode_plot(rtl,spice,thesdk):
         return os.path.dirname(os.path.realpath(__file__)) + "/"+__name__
 
     def __init__(self,*arg): 
-        """ Inverter parameters and attributes
+        """ bode plot parameters and attributes
             Parameters
             ----------
                 *arg : 
@@ -61,40 +61,32 @@ class bode_plot(rtl,spice,thesdk):
                 List of strings containing the names of attributes whose values are to be copied 
                 from the parent
 
-            Rs : float
-                Sampling rate [Hz] of which the input values are assumed to change. Default: 100.0e6
-
-            vdd : float
-                Supply voltage [V] for bode_plot analog simulation. Default 1.0.
-
             IOS : Bundle
-                Members of this bundle are the IO's of the entity. See documentation of thsdk package.
-                Default members defined as
-
-                self.IOS.Members['A']=IO() # Pointer for input data
-                self.IOS.Members['Z']= IO() # pointer for oputput data
-                self.IOS.Members['control_write']= IO() # Piter for control IO for rtl simulations
+                Members: 'in', constains Numpy 2-d array of frequency, complex voltage points.
+                Used to calculate transfer function.
 
             model : string
-                Default 'py' for Python. See documentation of thsdk package for more details.
+                Default 'py' for Python. 
         
-            par : boolean
-            Attribute to control parallel execution. HOw this is done is up to designer.
-            Default False
-
-            queue : array_like
-            List for return values in parallel processing. This list is read by the process in parent to get the values 
-            evalueted by the instance copies created during the parallel processing loop.
-
         """
         self.print_log(type='I', msg='Initializing %s' %(__name__)) 
-        self.proplist = [ 'Rs' ];    # Properties that can be propagated from parent
-        self.Rs =  100e6;            # Sampling frequency
-        self.vdd = 1.0
+        self.proplist = [  ];    # Properties that can be propagated from parent
         self.IOS=Bundle()
-        self.IOS.Members['A']=IO() # Pointer for input data
-        self.IOS.Members['Z']= IO()
-        self.IOS.Members['control_write']= IO() 
+        self.IOS.Members['vin']=IO() # Pointer for input data
+        self.IOS.Members['vout']=IO()
+        self.calc_tf=False # internally controlled variable
+        self.tf=None # The transfer function is stored in this variable
+        self.mag_plot=True # Draw magnitude plot?
+        self.phase_plot=True # Draw phase plot?
+        self.annotate_cutoff=True # Annotate cut-off frequency?
+        self.mag_label='$|H(j\omega)|$' # Label for magnitude plot
+        self.arg_label='$\angle H(j\omega)$' # Label for phase plot
+        self.plot_title = 'Bode plot'
+        self.resp_type = 'LP' # Expected response type
+        self.degrees=False # Calculate argument of transfer function in degrees?
+        self.xlim=None
+        self.save_fig=False
+        self.save_path=''
         # File for control is created in controller
         self.model='py';             # Can be set externally, but is not propagated
         self.par= False              # By default, no parallel processing
@@ -114,6 +106,21 @@ class bode_plot(rtl,spice,thesdk):
         """
         pass #Currently nohing to add
 
+    def get_cutoff(self, freq, magdata):
+        cutoff_level = -6 # TODO: Add this as parameter?
+        arr=np.abs(magdata-cutoff_level)
+        if self.resp_type.lower()=='lp' or self.resp_type.lower()=='hp':
+            idx1=arr.argmin()
+            return [freq[idx1]]
+        elif self.resp_type.lower()=='bp':
+            idx1 = arr.argmin()
+            arr=np.delete(arr, idx1)
+            idx2 = arr.argmin()
+            return [freq[idx1], freq[idx2]]
+        else:
+            self.print_log(type='F', msg='Unsupport response type %s' % self.resp_type)
+
+
     def main(self):
         ''' The main python description of the operation. Contents fully up to designer, however, the 
         IO's should be handled bu following this guideline:
@@ -125,12 +132,80 @@ class bode_plot(rtl,spice,thesdk):
         3) Assign local variable to output
 
         '''
-        inval=self.IOS.Members['A'].Data
-        out=np.array(1-inval)
-        if self.par:
-            self.queue.put(out)
-        self.IOS.Members['Z'].Data=out
+        # Input signal processing, check dimensions are correct, etc..
+        vout_mat=self.IOS.Members['vout'].Data
+        vin_mat=self.IOS.Members['vin'].Data
+        nrows,ncols=vout_mat.shape
+        if nrows==2 and ncols>2:
+            vout_mat=vout_mat.transpose()
+        elif ncols==2 and nrows>2:
+            pass
+        else:
+            self.print_log(type='F', msg='The IO vout should contain two columns of data!')
+        freq=vout_mat[:,0].real
+        vout=vout_mat[:,1]
+        # If vin is also given, calculate result as transfer function
+        if isinstance(vin_mat,np.ndarray):
+            self.calc_tf=True
+            nrows,ncols=vin_mat.shape
+            if nrows==2 and ncols>2:
+                vin_mat=vin_mat.transpose()
+            elif ncols==2 and nrows>2:
+                pass
+            else:
+                self.print_log(type='F', msg='The IO vin should containt two columns of data!')
+            vin=vin_mat[:,1]
+            if len(vin) != len(vout):
+                maxlen = min(len(vin), len(vout))
+                self.print_log(type='W', msg='Input and output voltage vectors are not of equal length, clipping both to %d samples' % maxlen)
+                vin=vin[0:maxlen]
+                vout=vout[0:maxlen]
+                freq=freq[0:maxlen]
+        else: # Otherwise, plot only vout
+            self.calc_tf=False
+        if self.calc_tf:
+            self.tf=vout/vin
+        else:
+            self.tf=vout
+        
+        mag_data=20*np.log10(np.abs(self.tf))
+        arg_data=np.angle(self.tf, deg=self.degrees)
 
+        if self.annotate_cutoff:
+            cutoff=self.get_cutoff(freq,mag_data)
+            for f in cutoff:
+                self.print_log(type='I', msg='Cut-off frequency is: %.4g Hz.' % f)        
+        if not self.xlim:
+            self.xlim=(freq[0], freq[-1])
+
+        if self.mag_plot and self.phase_plot: 
+            fig, ax = plt.subplots(2,1,sharex=True)
+            subfig1=ax[0].semilogx(freq.real,mag_data)
+            ax[0].set_ylabel(self.mag_label) 
+            ax[0].grid(True)
+            ax[0].set_ylim(bottom=min(mag_data))
+            ax[0].xlim=self.xlim
+            if self.annotate_cutoff:
+                cutoff=sorted(cutoff)
+                for i,f in enumerate(cutoff):
+                    ax[0].axvline(x=f, linestyle='--')
+                    plt.text(0.5,0.05+0.2*i, '$f_{c%d}=%.2g$' % (i,f),transform=ax[0].transAxes)
+            subfig2=ax[1].semilogx(freq.real,arg_data)
+            ax[1].set_ylabel(self.arg_label) 
+            ax[1].set_xlabel('Frequency (Hz)')
+            ax[1].xlim=self.xlim
+            ax[1].grid(True) 
+            fig.suptitle(self.plot_title)
+            plt.show(block=False)
+            if self.save_fig:
+                plt.savefig(self.save_path,format='pdf')
+        # TODO: Implement
+        elif self.mag_plot and not self.phase_plot:
+            pass
+        elif self.phase_plot and not self.mag_plot:
+            pass
+        else:
+            self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
     def run(self,*arg):
         ''' The default name of the method to be executed. This means: parameters and attributes 
             control what is executed if run method is executed. By this we aim to avoid the need of 
@@ -143,82 +218,12 @@ class bode_plot(rtl,spice,thesdk):
                 and it is assigned to self.queue and self.par is set to True. 
         
         '''
-        if len(arg)>0:
-            self.par=True      #flag for parallel processing
-            self.queue=arg[0]  #multiprocessing.queue as the first argument
         if self.model=='py':
             self.main()
-        else: 
-          if self.model=='sv':
-              # Verilog simulation options here
-              _=rtl_iofile(self, name='A', dir='in', iotype='sample', ionames=['A'], datatype='sint') # IO file for input A
-              _=rtl_iofile(self, name='Z', dir='out', iotype='sample', ionames=['Z'], datatype='sint')
-              self.rtlparameters=dict([ ('g_Rs',self.Rs),]) #Defines the sample rate
-              self.run_rtl()
-              self.IOS.Members['Z'].Data=self.IOS.Members['Z'].Data.astype(int)
-          if self.model=='vhdl':
-              # VHDL simulation options here
-              _=rtl_iofile(self, name='A', dir='in', iotype='sample', ionames=['A']) # IO file for input A
-              _=rtl_iofile(self, name='Z', dir='out', iotype='sample', ionames=['Z'], datatype='int')
-              self.rtlparameters=dict([ ('g_Rs',self.Rs),]) #Defines the sample rate
-              self.run_rtl()
-              self.IOS.Members['Z'].Data=self.IOS.Members['Z'].Data.astype(int)
-          
-          elif self.model=='eldo' or self.model=='spectre':
-              _=spice_iofile(self, name='A', dir='in', iotype='sample', ionames=['A'], rs=self.Rs, \
-                vhi=self.vdd, trise=1/(self.Rs*4), tfall=1/(self.Rs*4))
-              _=spice_iofile(self, name='Z', dir='out', iotype='event', sourcetype='V', ionames=['Z'])
-
-              # Saving the analog waveform of the input as well
-              self.IOS.Members['A_OUT']= IO()
-              _=spice_iofile(self, name='A_OUT', dir='out', iotype='event', sourcetype='V', ionames=['A'])
-              #self.preserve_iofiles = True
-              #self.preserve_spicefiles = True
-              #self.interactive_spice = True
-              self.nproc = 1
-              self.spiceoptions = {
-                          'eps': '1e-6'
-                      }
-              self.spiceparameters = {
-                          'exampleparam': '0'
-                      }
-              
-              # Plotting nodes for interactive eldo purposes.
-              # Spectre also supported, but without 'v()' specifiers.
-              # i.e. self.plotlist = ['A','Z']
-              if self.model == 'eldo':
-                  self.plotlist = ['v(A)','v(Z)']
-
-              # Defining library options
-              # Path to model libraries needs to be defined in TheSDK.config as
-              # either ELDOLIBFILE or SPECTRELIBFILE. In this case, no model libraries
-              # will be included (assuming these variables are not defined). The
-              # temperature will be set regardless.
-              self.spicecorner = {
-                          'corner': 'top_tt',
-                          'temp': 27,
-                      }
-
-              # Example of defining supplies (not used here because the example bode_plot has no supplies)
-              #_=spice_dcsource(self,name='dd',value=self.vdd,pos='VDD',neg='VSS',extract=True,ext_start=2e-9)
-              #_=spice_dcsource(self,name='ss',value=0,pos='VSS',neg='0')
-
-              # Simulation command
-              _=spice_simcmd(self,sim='tran')
-              self.run_spice()
-
-          if self.par:
-              self.queue.put(self.IOS.Members[Z].Data)
-
-    def define_io_conditions(self):
-        '''This overloads the method called by run_rtl method. It defines the read/write conditions for the files
-
-        '''
-        # Input A is read to verilog simulation after 'initdone' is set to 1 by controller
-        self.iofile_bundle.Members['A'].verilog_io_condition='initdone'
-        # Output is read to verilog simulation when all of the outputs are valid, 
-        # and after 'initdone' is set to 1 by controller
-        self.iofile_bundle.Members['Z'].verilog_io_condition_append(cond='&& initdone')
+            if self.par:
+                self.queue.put(
+                        {**self.IOS.Members}
+                        )
 
 
 if __name__=="__main__":
@@ -226,64 +231,20 @@ if __name__=="__main__":
     from  bode_plot import *
     from  bode_plot.controller import controller as bode_plot_controller
     import pdb
-    length=1024
-    rs=100e6
-    indata=np.random.randint(2,size=length).reshape(-1,1);
-    #indata=np.random.randint(2,size=length)
-    controller=bode_plot_controller()
-    controller.Rs=rs
-    #controller.reset()
-    #controller.step_time()
-    controller.start_datafeed()
 
-    models=[ 'py', 'sv', 'vhdl', 'eldo', 'spectre' ]
+    models=[ 'py']
     duts=[]
+    vout=np.loadtxt('vout.txt',dtype='complex')
+    vin=np.loadtxt('vin.txt',dtype='complex')
     for model in models:
         d=bode_plot()
         duts.append(d) 
         d.model=model
-        d.Rs=rs
-        #d.preserve_iofiles=True
-        #d.interactive_rtl=True
-        #d.interactive_spice=True
-        d.IOS.Members['A'].Data=indata
-        d.IOS.Members['control_write']=controller.IOS.Members['control_write']
+        d.degrees=True
+        d.IOS.Members['vout'].Data=vout
+        d.IOS.Members['vin'].Data=vin
         d.init()
         d.run()
 
     # Obs the latencies may be different
-    latency=[ 0 , 1, 1, 0 ]
-    for k in range(len(duts)):
-        hfont = {'fontname':'Sans'}
-        if duts[k].model == 'eldo' or duts[k].model=='spectre':
-            figure,axes = plt.subplots(2,1,sharex=True)
-            axes[0].plot(duts[k].IOS.Members['A_OUT'].Data[:,0],duts[k].IOS.Members['A_OUT'].Data[:,1],label='Input')
-            axes[1].plot(duts[k].IOS.Members['Z'].Data[:,0],duts[k].IOS.Members['Z'].Data[:,1],label='Output')
-            axes[0].set_ylabel('Input', **hfont,fontsize=18);
-            axes[1].set_ylabel('Output', **hfont,fontsize=18);
-            axes[1].set_xlabel('Time (s)', **hfont,fontsize=18);
-            axes[0].set_xlim(0,11/rs)
-            axes[1].set_xlim(0,11/rs)
-            axes[0].grid(True)
-            axes[1].grid(True)
-        else:
-            figure,axes=plt.subplots(2,1,sharex=True)
-            x = np.linspace(0,10,11).reshape(-1,1)
-            axes[0].stem(x,indata[0:11,0])
-            axes[0].set_ylim(0, 1.1);
-            axes[0].set_xlim((np.amin(x), np.amax(x)));
-            axes[0].set_ylabel('Input', **hfont,fontsize=18);
-            axes[0].grid(True)
-            axes[1].stem(x, duts[k].IOS.Members['Z'].Data[0+latency[k]:11+latency[k],0])
-            axes[1].set_ylim(0, 1.1);
-            axes[1].set_xlim((np.amin(x), np.amax(x)));
-            axes[1].set_ylabel('Output', **hfont,fontsize=18);
-            axes[1].set_xlabel('Sample (n)', **hfont,fontsize=18);
-            axes[1].grid(True)
-        titlestr = "Inverter model %s" %(duts[k].model) 
-        plt.suptitle(titlestr,fontsize=20);
-        plt.grid(True);
-        printstr="./inv_%s.eps" %(duts[k].model)
-        plt.show(block=False);
-        figure.savefig(printstr, format='eps', dpi=300);
     input()
