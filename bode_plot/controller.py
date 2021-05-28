@@ -40,7 +40,7 @@ class controller(rtl):
         # We now where the rtl file is. 
         # Let's read in the file to have IOs defined
         self.dut=verilog_module(file=self.vlogsrcpath 
-                + '/inverter.sv')
+                + '/bode_plot.sv')
 
         # Define the signal connectors associated with this 
         # controller

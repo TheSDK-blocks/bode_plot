@@ -28,7 +28,7 @@ up to designer. You may use it for example to test the functionality of the clas
 ``pyhon3.6 __init__.py``
 
 or you may define how it handles the arguments passed during the invocation. In this example it is used 
-as a complete self test script for all the simulation models defined for the inverter. 
+as a complete self test script for all the simulation models defined for the bode_plot. 
 
 """
 
@@ -43,7 +43,7 @@ from spice import *
 
 import numpy as np
 
-class inverter(rtl,spice,thesdk):
+class bode_plot(rtl,spice,thesdk):
     @property
     def _classfile(self):
         return os.path.dirname(os.path.realpath(__file__)) + "/"+__name__
@@ -65,7 +65,7 @@ class inverter(rtl,spice,thesdk):
                 Sampling rate [Hz] of which the input values are assumed to change. Default: 100.0e6
 
             vdd : float
-                Supply voltage [V] for inverter analog simulation. Default 1.0.
+                Supply voltage [V] for bode_plot analog simulation. Default 1.0.
 
             IOS : Bundle
                 Members of this bundle are the IO's of the entity. See documentation of thsdk package.
@@ -199,7 +199,7 @@ class inverter(rtl,spice,thesdk):
                           'temp': 27,
                       }
 
-              # Example of defining supplies (not used here because the example inverter has no supplies)
+              # Example of defining supplies (not used here because the example bode_plot has no supplies)
               #_=spice_dcsource(self,name='dd',value=self.vdd,pos='VDD',neg='VSS',extract=True,ext_start=2e-9)
               #_=spice_dcsource(self,name='ss',value=0,pos='VSS',neg='0')
 
@@ -223,14 +223,14 @@ class inverter(rtl,spice,thesdk):
 
 if __name__=="__main__":
     import matplotlib.pyplot as plt
-    from  inverter import *
-    from  inverter.controller import controller as inverter_controller
+    from  bode_plot import *
+    from  bode_plot.controller import controller as bode_plot_controller
     import pdb
     length=1024
     rs=100e6
     indata=np.random.randint(2,size=length).reshape(-1,1);
     #indata=np.random.randint(2,size=length)
-    controller=inverter_controller()
+    controller=bode_plot_controller()
     controller.Rs=rs
     #controller.reset()
     #controller.step_time()
@@ -239,7 +239,7 @@ if __name__=="__main__":
     models=[ 'py', 'sv', 'vhdl', 'eldo', 'spectre' ]
     duts=[]
     for model in models:
-        d=inverter()
+        d=bode_plot()
         duts.append(d) 
         d.model=model
         d.Rs=rs
