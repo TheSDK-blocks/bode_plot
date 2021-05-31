@@ -237,6 +237,7 @@ class bode_plot(rtl,spice,thesdk):
             self.xscale='linear'
         if self.xscale not in ('linear', 'log'):
             self.print_log(type='F', msg='Unsupported x-axis scale %s!' % self.xscale)
+        figure=plt.figure()
         if self.mag_plot and self.phase_plot: 
             fig, ax = plt.subplots(2,1,sharex=True)
             subfig1=ax[0].plot(self.freq,mag_data)
@@ -258,8 +259,6 @@ class bode_plot(rtl,spice,thesdk):
             ax[1].grid(True) 
             fig.suptitle(self.plot_title)
             plt.show(block=False)
-            if self.save_fig:
-                plt.savefig(self.save_path,format='pdf')
         elif self.mag_plot and not self.phase_plot:
             fig=plt.plot(self.freq, mag_data)
             ax=plt.gca()
@@ -275,8 +274,6 @@ class bode_plot(rtl,spice,thesdk):
                     txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center') # TODO: figure out a way to automatically determine best position
                     ax.add_artist(txt)
             plt.show(block=False)
-            if self.save_fig:
-                plt.savefig(self.save_path,format='pdf')
         elif self.phase_plot and not self.mag_plot:
             fig=plt.plot(self.freq, phase_data)
             ax=plt.gca()
@@ -285,10 +282,10 @@ class bode_plot(rtl,spice,thesdk):
             ax.set_xscale(self.xscale)
             ax.set_xlim(*self.xlim) 
             plt.show(block=False)
-            if self.save_fig:
-                plt.savefig(self.save_path,format='pdf')
         else:
             self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
+        if self.save_fig:
+            figure.savefig(self.save_path,format='pdf')
 
     def run(self,*arg):
         ''' The default name of the method to be executed. This means: parameters and attributes 
