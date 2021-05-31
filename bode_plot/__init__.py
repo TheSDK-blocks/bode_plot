@@ -43,6 +43,7 @@ from spice import *
 import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator, LogLocator
+from matplotlib.offsetbox import AnchoredText
 import numpy as np
 
 class bode_plot(rtl,spice,thesdk):
@@ -88,8 +89,24 @@ class bode_plot(rtl,spice,thesdk):
         self.resp_type = 'LP' # Expected response type
         self.degrees=False # Calculate argument of transfer function in degrees?
         self.xlim=None
+        self.xscale='log' # Scale for plot x-axis
         self.save_fig=False
         self.save_path=''
+
+        # Table of order of magnitudes v. SI prefixes
+        self.si_table = {
+                12:'T',
+                9:'G',
+                6:'M',
+                3:'k',
+                0:'',
+                -3:'m',
+                -6:'u',
+                -9:'n',
+                -12:'p',
+                -15:'f',
+                }
+
         # File for control is created in controller
         self.model='py';             # Can be set externally, but is not propagated
         self.par= False              # By default, no parallel processing
@@ -108,6 +125,19 @@ class bode_plot(rtl,spice,thesdk):
 
         """
         pass #Currently nohing to add
+
+    def get_si_prefix_str(self, val):
+        exp=np.log10(val)
+        for key, val in self.si_table.items():
+            if exp >= key:
+                break
+        return key, val 
+
+    def format_si_str(self, val, prec=3):
+        exp, prefix = self.get_si_prefix_str(val)
+        retstr='%' + ('.%d' % prec) + 'g '
+        retstr=(retstr % (val/(10**exp))) + prefix 
+        return retstr
 
     def get_cutoff(self, magdata):
         cutoff_level = -6 # TODO: Add this as parameter?
@@ -203,23 +233,28 @@ class bode_plot(rtl,spice,thesdk):
         # Set x-axis limits based on data, if not already given
         if not self.xlim:
             self.xlim=(self.freq[0], self.freq[-1])
+        if self.xscale == 'lin': # Matplotlib wants it to be 'linear'... 
+            self.xscale='linear'
+        if self.xscale not in ('linear', 'log'):
+            self.print_log(type='F', msg='Unsupported x-axis scale %s!' % self.xscale)
         if self.mag_plot and self.phase_plot: 
             fig, ax = plt.subplots(2,1,sharex=True)
             subfig1=ax[0].plot(self.freq,mag_data)
             ax[0].set_ylabel(self.mag_label) 
-            ax[0].set_xscale('log')
+            ax[0].set_xscale(self.xscale)
             ax[0].set_xlim(*self.xlim)
             if self.annotate_cutoff:
                 cutoff=sorted(cutoff)
                 ax[0].set_ylim(bottom=min(mag_data)) # This avoids vertical line from strecting the y-limit
                 for i,f in enumerate(cutoff):
                     ax[0].axvline(x=f, linestyle='--')
-                    plt.text(0.5,0.05+0.2*i, '$f_{c%d}=%.2g$' % (i,f),transform=ax[0].transAxes)
+                    txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center')
+                    ax[0].add_artist(txt)
             subfig2=ax[1].plot(self.freq,phase_data)
             ax[1].set_ylabel(self.phase_label) 
             ax[1].set_xlabel('Frequency (Hz)')
             ax[1].set_xlim(*self.xlim)
-            ax[1].set_xscale('log')
+            ax[1].set_xscale(self.xscale)
             ax[1].grid(True) 
             fig.suptitle(self.plot_title)
             plt.show(block=False)
@@ -230,14 +265,15 @@ class bode_plot(rtl,spice,thesdk):
             ax=plt.gca()
             ax.set_ylabel(self.mag_label)
             ax.set_xlabel('Frequency (Hz)')
-            ax.set_xscale('log')
+            ax.set_xscale(self.xscale)
             ax.set_xlim(*self.xlim) 
             if self.annotate_cutoff:
                 cutoff=sorted(cutoff)
                 ax.set_ylim(bottom=min(mag_data)) # This avoids vertical line from extending the y-limit
                 for i,f in enumerate(cutoff):
                     ax.axvline(x=f, linestyle='--')
-                    plt.text(0.5,0.05+0.2*i, '$f_{c%d}=%.2g$' % (i,f),transform=ax.transAxes)
+                    txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center') # TODO: figure out a way to automatically determine best position
+                    ax.add_artist(txt)
             plt.show(block=False)
             if self.save_fig:
                 plt.savefig(self.save_path,format='pdf')
@@ -246,13 +282,14 @@ class bode_plot(rtl,spice,thesdk):
             ax=plt.gca()
             ax.set_ylabel(self.phase_label)
             ax.set_xlabel('Frequency (Hz)')
-            ax.set_xscale('log')
+            ax.set_xscale(self.xscale)
             ax.set_xlim(*self.xlim) 
             plt.show(block=False)
             if self.save_fig:
                 plt.savefig(self.save_path,format='pdf')
         else:
             self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
+
     def run(self,*arg):
         ''' The default name of the method to be executed. This means: parameters and attributes 
             control what is executed if run method is executed. By this we aim to avoid the need of 
