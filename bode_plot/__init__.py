@@ -237,7 +237,6 @@ class bode_plot(rtl,spice,thesdk):
             self.xscale='linear'
         if self.xscale not in ('linear', 'log'):
             self.print_log(type='F', msg='Unsupported x-axis scale %s!' % self.xscale)
-        figure=plt.figure()
         if self.mag_plot and self.phase_plot: 
             fig, ax = plt.subplots(2,1,sharex=True)
             subfig1=ax[0].plot(self.freq,mag_data)
@@ -260,7 +259,8 @@ class bode_plot(rtl,spice,thesdk):
             fig.suptitle(self.plot_title)
             plt.show(block=False)
         elif self.mag_plot and not self.phase_plot:
-            fig=plt.plot(self.freq, mag_data)
+            fig=plt.figure()
+            plt.plot(self.freq, mag_data)
             ax=plt.gca()
             ax.set_ylabel(self.mag_label)
             ax.set_xlabel('Frequency (Hz)')
@@ -275,7 +275,8 @@ class bode_plot(rtl,spice,thesdk):
                     ax.add_artist(txt)
             plt.show(block=False)
         elif self.phase_plot and not self.mag_plot:
-            fig=plt.plot(self.freq, phase_data)
+            fig=plt.figure()
+            plt.plot(self.freq, phase_data)
             ax=plt.gca()
             ax.set_ylabel(self.phase_label)
             ax.set_xlabel('Frequency (Hz)')
@@ -284,8 +285,8 @@ class bode_plot(rtl,spice,thesdk):
             plt.show(block=False)
         else:
             self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
-        if self.save_fig:
-            figure.savefig(self.save_path,format='pdf')
+        if self.save_fig and (self.phase_plot or self.mag_plot):
+            fig.savefig(self.save_path,format='pdf')
 
     def run(self,*arg):
         ''' The default name of the method to be executed. This means: parameters and attributes 
@@ -324,6 +325,10 @@ if __name__=="__main__":
         d.degrees=True
         d.IOS.Members['vout'].Data=vout
         d.IOS.Members['vin'].Data=vin
+        d.save_fig=True
+        d.save_path='../figures/bode.pdf'
+        d.mag_plot=True
+        d.phase_plot=True
         d.init()
         d.run()
 
