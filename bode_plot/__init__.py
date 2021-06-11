@@ -77,15 +77,19 @@ class bode_plot(rtl,spice,thesdk):
         self.IOS=Bundle()
         self.IOS.Members['vin']=IO() # Pointer for input data
         self.IOS.Members['vout']=IO()
+        self.figformat='pdf' # Format for image file, default: '.pdf'. This is automatically appended to the end of self.save_path
         self.calc_tf=False # internally controlled variable
         self.freq=None # Frequency axis data used in plotting
+        self.cutoff = [] # Cutoff freq vector
         self.tf=None # The transfer function is stored in this variable
+        self.cutoff_level=-3 # The level from which the cutoff frequency is to be calculated from (default -3dB)
         self.mag_plot=True # Draw magnitude plot?
         self.phase_plot=True # Draw phase plot?
         self.annotate_cutoff=True # Annotate cut-off frequency?
         self.mag_label=None # Label for magnitude plot
         self.phase_label=None # Label for phase plot
         self.plot_title = 'Bode plot'
+        self.plot = True # True to plot the reponse
         self.resp_type = 'LP' # Expected response type
         self.degrees=False # Calculate argument of transfer function in degrees?
         self.xlim=None
@@ -140,7 +144,7 @@ class bode_plot(rtl,spice,thesdk):
         return retstr
 
     def get_cutoff(self, magdata):
-        cutoff_level = -6 # TODO: Add this as parameter?
+        cutoff_level = self.cutoff_level
         arr=np.abs(magdata-cutoff_level)
         if self.resp_type.lower()=='lp' or self.resp_type.lower()=='hp':
             idx1=arr.argmin()
@@ -219,8 +223,9 @@ class bode_plot(rtl,spice,thesdk):
         phase_data=np.angle(self.tf, deg=self.degrees)
         # Get cutoff frequency
         if self.annotate_cutoff:
-            cutoff=self.get_cutoff(mag_data)
-            for f in cutoff:
+            self.cutoff=self.get_cutoff(mag_data)
+            self.cutoff.sort()
+            for f in self.cutoff:
                 self.print_log(type='I', msg='Cut-off frequency is: %.4g Hz.' % f)        
         # Update labels, if not already given:
         if self.mag_label is None:
@@ -244,9 +249,8 @@ class bode_plot(rtl,spice,thesdk):
             ax[0].set_xscale(self.xscale)
             ax[0].set_xlim(*self.xlim)
             if self.annotate_cutoff:
-                cutoff=sorted(cutoff)
                 ax[0].set_ylim(bottom=min(mag_data)) # This avoids vertical line from strecting the y-limit
-                for i,f in enumerate(cutoff):
+                for i,f in enumerate(self.cutoff):
                     ax[0].axvline(x=f, linestyle='--')
                     txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center')
                     ax[0].add_artist(txt)
@@ -257,7 +261,8 @@ class bode_plot(rtl,spice,thesdk):
             ax[1].set_xscale(self.xscale)
             ax[1].grid(True) 
             fig.suptitle(self.plot_title)
-            plt.show(block=False)
+            if self.plot:
+                plt.show(block=False)
         elif self.mag_plot and not self.phase_plot:
             fig=plt.figure()
             plt.plot(self.freq, mag_data)
@@ -267,13 +272,13 @@ class bode_plot(rtl,spice,thesdk):
             ax.set_xscale(self.xscale)
             ax.set_xlim(*self.xlim) 
             if self.annotate_cutoff:
-                cutoff=sorted(cutoff)
                 ax.set_ylim(bottom=min(mag_data)) # This avoids vertical line from extending the y-limit
-                for i,f in enumerate(cutoff):
+                for i,f in enumerate(self.cutoff):
                     ax.axvline(x=f, linestyle='--')
                     txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center') # TODO: figure out a way to automatically determine best position
                     ax.add_artist(txt)
-            plt.show(block=False)
+            if self.plot:
+                plt.show(block=False)
         elif self.phase_plot and not self.mag_plot:
             fig=plt.figure()
             plt.plot(self.freq, phase_data)
@@ -282,11 +287,12 @@ class bode_plot(rtl,spice,thesdk):
             ax.set_xlabel('Frequency (Hz)')
             ax.set_xscale(self.xscale)
             ax.set_xlim(*self.xlim) 
-            plt.show(block=False)
+            if self.plot:
+                plt.show(block=False)
         else:
             self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
-        if self.save_fig and (self.phase_plot or self.mag_plot):
-            fig.savefig(self.save_path,format='pdf')
+        if self.save_fig and (self.phase_plot or self.mag_plot) and self.plot:
+            fig.savefig('%s.%s' % (self.save_path, self.figformat), format=self.figformat)
 
     def run(self,*arg):
         ''' The default name of the method to be executed. This means: parameters and attributes 
