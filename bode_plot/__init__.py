@@ -163,7 +163,7 @@ class bode_plot(rtl,spice,thesdk):
         self.xlim=None
         self.xscale='log' # Scale for plot x-axis
         self.save_fig=False
-        self.save_path='../figures/bode_plot.%s' % self.figformat
+        self.save_path='../figures/bode_plot'
         self.reuse_fig=False # Plot current TF to active figure window? Useful for plotting multiple TF's in same figure
 
         # Table of order of magnitudes v. SI prefixes
@@ -459,7 +459,7 @@ if __name__=="__main__":
         d.IOS.Members['vout'].Data=vout
         d.IOS.Members['vin'].Data=vin
         d.save_fig=True
-        d.save_path='../figures/bode.pdf'
+        d.save_path='../figures/bode'
         d.mag_plot=True
         d.phase_plot=True
         d.init()
