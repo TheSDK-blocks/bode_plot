@@ -70,7 +70,72 @@ class bode_plot(rtl,spice,thesdk):
 
             model : string
                 Default 'py' for Python. 
-        
+            
+            IOS.Members['vin'] : 2D-np.array
+                Input voltage data, containing frequency and voltage data columns (freq assumed as first column)
+
+            IOS.Members['vout'] : 2D-np.array
+                Output voltage data, containing frequency and voltage data columns (freq assumed as first column)
+
+            figformat : string
+                'pdf' | 'eps' | 'svg' | 'png' | etc.. (see Matplotlib savefig())
+                Format to save figure in
+            calc_tf : bool
+                Internally controlled variable. DO NOT TOUCH!
+                If both vin and vout are given, calculate transfer function as vout/vin and plot result
+            freq : np.array
+                frequency data vector
+            cutoff : List[float]
+                List containing detected cut-off frequencies
+            tf : 2-D np.array
+                If transfer function was calculated, store in this variable
+            cutoff_level : float
+                This value is substracted from signal to find cutoff.
+                E.g. to find -6 dB cutoff, give value as 6.
+                Default: 3. Given relative to maximum.
+            mag_plot: bool
+                Plot magnitude data
+            phase_plot: bool
+                Plot phase data
+            annotate_cutoff: bool
+                Annotate cutoffs in figure?
+            mag_label: string
+                Label of y-axis for magnitude plots
+            phase_label: string
+                Label omagnitude f y-axis for phase plots
+            shade_area: bool
+                If true, shade the area under the TF curve and y == 0
+                Limits for shading set with fstart and fstop.
+                Useful for annotating e.g. bandwidth of input signal, etc
+            fstart: float
+                Frequency from which shading starts
+            fstop: float
+                Frequency to which shading stops
+            plot_title: string
+                Main title of generated plot
+            plot: bool
+                Genereate figures if true
+            resp_type: string
+                Expected response type: "LP" | "HP" | "BP"
+                Used to find cutoffs
+            degrees: bool
+                If true, plot phase response in degrees rather than radians.
+                Default: true
+            xlim: Tuple(float, float)
+                If given, sets plot x-axis limits according to this
+            xscale: string
+                'log' | 'lin'
+                Sets x-axis tick spacing to linear or logarithmic
+            save_fig: bool
+                If true, saves figure to path specified by save_path
+            save_path: str
+                Path to save the figure to. File extension is set from figformat.
+                Default: '../figures/bode_plot.<figformat>'
+            reuse_fig: bool
+                Plot to current active figure window. Useful for
+                plotting multiple TF's in same figure. Currently
+                supported for either mag_data or phase_data only
+                (not both).
         """
         self.print_log(type='I', msg='Initializing %s' %(__name__)) 
         self.proplist = [  ];    # Properties that can be propagated from parent
@@ -82,20 +147,24 @@ class bode_plot(rtl,spice,thesdk):
         self.freq=None # Frequency axis data used in plotting
         self.cutoff = [] # Cutoff freq vector
         self.tf=None # The transfer function is stored in this variable
-        self.cutoff_level=-3 # The level from which the cutoff frequency is to be calculated from (default -3dB)
+        self.cutoff_level=3 # The level from which the cutoff frequency is to be calculated from (default -3dB)
         self.mag_plot=True # Draw magnitude plot?
         self.phase_plot=True # Draw phase plot?
         self.annotate_cutoff=True # Annotate cut-off frequency?
         self.mag_label=None # Label for magnitude plot
         self.phase_label=None # Label for phase plot
-        self.plot_title = 'Bode plot'
+        self.shade_area=False # True to shade area under curve between fstart and fstop
+        self.fstart=None # Freq from which to start shading
+        self.fstop=None # Freq to which shading stops
+        self.plot_title = '' # Main title for figure window
         self.plot = True # True to plot the reponse
-        self.resp_type = 'LP' # Expected response type
-        self.degrees=False # Calculate argument of transfer function in degrees?
+        self.resp_type = 'LP' # Expected response type: "LP" | "HP" | "BP" currently supported
+        self.degrees=True# Calculate argument of transfer function in degrees?
         self.xlim=None
         self.xscale='log' # Scale for plot x-axis
         self.save_fig=False
-        self.save_path=''
+        self.save_path='../figures/bode_plot.%s' % self.figformat
+        self.reuse_fig=False # Plot current TF to active figure window? Useful for plotting multiple TF's in same figure
 
         # Table of order of magnitudes v. SI prefixes
         self.si_table = {
@@ -145,6 +214,12 @@ class bode_plot(rtl,spice,thesdk):
 
     def get_cutoff(self, magdata):
         cutoff_level = self.cutoff_level
+        max_val=max(magdata)
+        if cutoff_level < 0:
+            self.print_log(type='W', msg='Cut-off level given as negative! Converting to positive!')
+            self.cutoff_level = -1 * self.cutoff_level
+            cutoff_level=self.cutoff_level
+        cutoff_level = max_val - cutoff_level # Cut-off should be relative to maximum value 
         arr=np.abs(magdata-cutoff_level)
         if self.resp_type.lower()=='lp' or self.resp_type.lower()=='hp':
             idx1=arr.argmin()
@@ -198,6 +273,37 @@ class bode_plot(rtl,spice,thesdk):
             self.tf=vout
         return
 
+    def shade_curve(self, data):
+        '''
+        Shades the area between the magnitude/phase plot and y==0 (e.g. assumes positive TF)
+
+        Useful for annotating bandwidth
+        '''
+        if self.fstart:
+            x1=self.fstart
+            x1_idx=np.where(self.freq>=x1)[0]
+            if len(x1_idx)>0:
+                x1_idx=x1_idx[0]
+            else:
+                self.print_log(type='W', msg='No frequency corresponding to fstart: %.4g detected in input data!' % self.fstart)
+                x1_idx=0
+        else:
+            x1=0
+            x1_idx=0
+        if self.fstop:
+            x2=self.fstop
+            x2_idx=np.where(self.freq>=x2)[0]
+            if len(x2_idx)>0:
+                x2_idx=x2_idx[0]
+            else:
+                self.print_log(type='W', msg='No frequency corresponding to fstop: %.4g detected in input data!' % self.fstop)
+                x2_idx=-1
+        else:
+            x2=self.freq[-1]
+            x2_idx=-1
+        x=self.freq[x1_idx:x2_idx] if x2_idx!=-1 else self.freq[x1_idx:] 
+        y=data[x1_idx:x2_idx] if x2_idx!= -1 else data[x1_idx:]
+        plt.fill_between(x, y, y2=0, alpha=0.2)
 
     def main(self):
         ''' The main python description of the operation. Contents fully up to designer, however, the 
@@ -222,11 +328,10 @@ class bode_plot(rtl,spice,thesdk):
         mag_data=20*np.log10(np.abs(self.tf))
         phase_data=np.angle(self.tf, deg=self.degrees)
         # Get cutoff frequency
-        if self.annotate_cutoff:
-            self.cutoff=self.get_cutoff(mag_data)
-            self.cutoff.sort()
-            for f in self.cutoff:
-                self.print_log(type='I', msg='Cut-off frequency is: %.4g Hz.' % f)        
+        self.cutoff=self.get_cutoff(mag_data)
+        self.cutoff.sort()
+        for f in self.cutoff:
+            self.print_log(type='I', msg='Cut-off frequency is: %.4g Hz.' % f)        
         # Update labels, if not already given:
         if self.mag_label is None:
             self.mag_label='Magnitude (dB)'
@@ -259,36 +364,56 @@ class bode_plot(rtl,spice,thesdk):
             ax[1].set_xlabel('Frequency (Hz)')
             ax[1].set_xlim(*self.xlim)
             ax[1].set_xscale(self.xscale)
-            ax[1].grid(True) 
-            fig.suptitle(self.plot_title)
+            ax[1].grid(True, which='both') 
+            if self.plot_title:
+                fig.suptitle(self.plot_title)
             if self.plot:
                 plt.show(block=False)
+                plt.pause(0.5)
         elif self.mag_plot and not self.phase_plot:
-            fig=plt.figure()
-            plt.plot(self.freq, mag_data)
+            if self.reuse_fig:
+                fig=plt.gcf()
+            else:
+                fig=plt.figure()
+            lines=plt.plot(self.freq, mag_data)
             ax=plt.gca()
             ax.set_ylabel(self.mag_label)
             ax.set_xlabel('Frequency (Hz)')
             ax.set_xscale(self.xscale)
             ax.set_xlim(*self.xlim) 
+            ax.grid(True, which='both')
+            if self.plot_title:
+                fig.suptitle(self.plot_title)
+            if self.shade_area:
+                self.shade_curve(mag_data)
             if self.annotate_cutoff:
                 ax.set_ylim(bottom=min(mag_data)) # This avoids vertical line from extending the y-limit
                 for i,f in enumerate(self.cutoff):
-                    ax.axvline(x=f, linestyle='--')
-                    txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center') # TODO: figure out a way to automatically determine best position
-                    ax.add_artist(txt)
+                    ax.axvline(x=f, linestyle=lines[-1].get_linestyle(), color=lines[-1].get_color())
+                    #txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center') # TODO: figure out a way to automatically determine best position
+                    #ax.add_artist(txt)
             if self.plot:
                 plt.show(block=False)
+                plt.pause(0.5)
         elif self.phase_plot and not self.mag_plot:
-            fig=plt.figure()
+            if self.reuse_fig:
+                fig=plt.gcf()
+            else:
+                fig=plt.figure()
             plt.plot(self.freq, phase_data)
             ax=plt.gca()
             ax.set_ylabel(self.phase_label)
             ax.set_xlabel('Frequency (Hz)')
             ax.set_xscale(self.xscale)
             ax.set_xlim(*self.xlim) 
+            ax.grid(True, which='both')
+            if self.plot_title:
+                fig.suptitle(self.plot_title)
+            if self.shade_area:
+                self.shade_curve(phase_data)
             if self.plot:
                 plt.show(block=False)
+                plt.pause(0.5)
         else:
             self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
         if self.save_fig and (self.phase_plot or self.mag_plot) and self.plot:
@@ -324,6 +449,8 @@ if __name__=="__main__":
     duts=[]
     vout=np.loadtxt('vout.txt',dtype='complex')
     vin=np.loadtxt('vin.txt',dtype='complex')
+    gain=100
+    vout[:,1]=vout[:,1]*gain
     for model in models:
         d=bode_plot()
         duts.append(d) 
