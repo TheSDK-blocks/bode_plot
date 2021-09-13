@@ -1,34 +1,16 @@
 """
 ========
-Inverter
+Bode plot
 ========
 
-Inverter model template The System Development Kit
-Used as a template for all TheSyDeKick Entities.
+Bode plot module for TheSystemDevelopmentKit (https://github.com/TheSystemDevelopmentKit). 
 
-Current docstring documentation style is Numpy
-https://numpydoc.readthedocs.io/en/latest/format.html
-
-For reference of the markup syntax
-https://docutils.sourceforge.io/docs/user/rst/quickref.html
-
-This text here is to remind you that documentation is iportant.
-However, youu may find it out the even the documentation of this 
-entity may be outdated and incomplete. Regardless of that, every day 
-and in every way we are getting better and better :).
-
-Initially written by Marko Kosunen, marko.kosunen@aalto.fi, 2017.
+Plots frequency response based on given freq, amplitude data.
 
 
-Role of section 'if __name__=="__main__"'
---------------------------------------------
+Initially written by Santeri Porrasmaa, santeri.porrasmaa@aalto.fi
 
-This section is for self testing and interfacing of this class. The content of it is fully 
-up to designer. You may use it for example to test the functionality of the class by calling it as
-``pyhon3.6 __init__.py``
-
-or you may define how it handles the arguments passed during the invocation. In this example it is used 
-as a complete self test script for all the simulation models defined for the bode_plot. 
+Last modified by Santeri Porrasmaa, 13.09.2021
 
 """
 
@@ -67,45 +49,46 @@ class bode_plot(rtl,spice,thesdk):
             IOS : Bundle
                 Members: 'in', constains Numpy 2-d array of frequency, complex voltage points.
                 Used to calculate transfer function.
-
-            model : string
-                Default 'py' for Python. 
-            
             IOS.Members['vin'] : 2D-np.array
                 Input voltage data, containing frequency and voltage data columns (freq assumed as first column)
 
             IOS.Members['vout'] : 2D-np.array
                 Output voltage data, containing frequency and voltage data columns (freq assumed as first column)
-
-            figformat : string
-                'pdf' | 'eps' | 'svg' | 'png' | etc.. (see Matplotlib savefig())
-                Format to save figure in
+            model : string
+                Default 'py' for Python. 
             calc_tf : bool
                 Internally controlled variable. DO NOT TOUCH!
                 If both vin and vout are given, calculate transfer function as vout/vin and plot result
+            tf : 2-D np.array
+                If transfer function was calculated, store in this variable. First column is frequency,
+                second is transfer function.
+            squared : bool
+                If true, plot squared magnitude response
+                Default: false
             freq : np.array
                 frequency data vector
-            cutoff : List[float]
-                List containing detected cut-off frequencies
-            tf : 2-D np.array
-                If transfer function was calculated, store in this variable
             cutoff_level : float
                 This value is substracted from signal to find cutoff.
                 E.g. to find -6 dB cutoff, give value as 6.
                 Default: 3. Given relative to maximum.
-            mag_plot: bool
-                Plot magnitude data
-            phase_plot: bool
-                Plot phase data
+            cutoff : List[float]
+                List containing detected cut-off frequencies
+            resp_type: string
+                Expected response type: "LP" | "HP" | "BP"
+                Used to find cutoffs
             annotate_cutoff: bool
                 Annotate cutoffs in figure?
+            mag_plot: bool
+                Plot magnitude data
             mag_label: string
                 Label of y-axis for magnitude plots
+            phase_plot: bool
+                Plot phase data
             phase_label: string
                 Label omagnitude f y-axis for phase plots
             shade_area: bool
                 If true, shade the area under the TF curve and y == 0
-                Limits for shading set with fstart and fstop.
+                Limits for shading set with self.fstart and self.fstop.
                 Useful for annotating e.g. bandwidth of input signal, etc
             fstart: float
                 Frequency from which shading starts
@@ -115,9 +98,6 @@ class bode_plot(rtl,spice,thesdk):
                 Main title of generated plot
             plot: bool
                 Genereate figures if true
-            resp_type: string
-                Expected response type: "LP" | "HP" | "BP"
-                Used to find cutoffs
             degrees: bool
                 If true, plot phase response in degrees rather than radians.
                 Default: true
@@ -126,6 +106,9 @@ class bode_plot(rtl,spice,thesdk):
             xscale: string
                 'log' | 'lin'
                 Sets x-axis tick spacing to linear or logarithmic
+            figformat : string
+                'pdf' | 'eps' | 'svg' | 'png' | etc.. (see Matplotlib savefig())
+                Format to save figure in
             save_fig: bool
                 If true, saves figure to path specified by save_path
             save_path: str
@@ -150,6 +133,7 @@ class bode_plot(rtl,spice,thesdk):
         self.cutoff_level=3 # The level from which the cutoff frequency is to be calculated from (default -3dB)
         self.mag_plot=True # Draw magnitude plot?
         self.phase_plot=True # Draw phase plot?
+        self.squared=False # If true, plot squared magnitude response
         self.annotate_cutoff=True # Annotate cut-off frequency?
         self.mag_label=None # Label for magnitude plot
         self.phase_label=None # Label for phase plot
@@ -323,9 +307,11 @@ class bode_plot(rtl,spice,thesdk):
         # After calling this, transfer function and frequency points are 
         # available from their respective variables (see documentation)
         self.check_input()
-          
         # Calculate magnitude and phase from transfer function
-        mag_data=20*np.log10(np.abs(self.tf))
+        if self.squared:
+            mag_data=20*np.log10(np.abs(self.tf)**2)
+        else:
+            mag_data=20*np.log10(np.abs(self.tf))
         phase_data=np.angle(self.tf, deg=self.degrees)
         # Get cutoff frequency
         self.cutoff=self.get_cutoff(mag_data)
@@ -390,8 +376,8 @@ class bode_plot(rtl,spice,thesdk):
                 ax.set_ylim(bottom=min(mag_data)) # This avoids vertical line from extending the y-limit
                 for i,f in enumerate(self.cutoff):
                     ax.axvline(x=f, linestyle=lines[-1].get_linestyle(), color=lines[-1].get_color())
-                    #txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center') # TODO: figure out a way to automatically determine best position
-                    #ax.add_artist(txt)
+                    txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center') # TODO: figure out a way to automatically determine best position
+                    ax.add_artist(txt)
             if self.plot:
                 plt.show(block=False)
                 plt.pause(0.5)
@@ -456,6 +442,7 @@ if __name__=="__main__":
         duts.append(d) 
         d.model=model
         d.degrees=True
+        d.squared=False
         d.IOS.Members['vout'].Data=vout
         d.IOS.Members['vin'].Data=vin
         d.save_fig=True
