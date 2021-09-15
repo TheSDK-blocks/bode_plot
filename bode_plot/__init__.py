@@ -218,44 +218,39 @@ class bode_plot(rtl,spice,thesdk):
 
     def check_input(self):
         '''
-        Check that the input is of correct format.
+        Check that the input is of correct format. Expected is 2-by-m matrix where first colmun is freq and second is magnitude.
         '''
         vout_mat=self.IOS.Members['vout'].Data
         vin_mat=self.IOS.Members['vin'].Data
         nrows,ncols=vout_mat.shape
         if nrows==2 and ncols>2:
-            vout_mat=vout_mat.transpose()
+            vout_mat=vout_mat.transpose() # Make column vectors
         elif ncols==2 and nrows>2:
             pass
         else:
             self.print_log(type='F', msg='The IO vout should contain two columns of data!')
-        freq=vout_mat[:,0].real
-        vout=vout_mat[:,1]
-        # If vin is also given, calculate result as transfer function
         if isinstance(vin_mat,np.ndarray):
+            # If vin is also given, calculate result as transfer function
             self.calc_tf=True
             nrows,ncols=vin_mat.shape
             if nrows==2 and ncols>2:
-                vin_mat=vin_mat.transpose()
+                vin_mat=vin_mat.transpose() # Male column vectors
             elif ncols==2 and nrows>2:
                 pass
             else:
                 self.print_log(type='F', msg='The IO vin should containt two columns of data!')
-            vin=vin_mat[:,1]
-            if len(vin) != len(vout):
-                maxlen = min(len(vin), len(vout))
+            if len(vin_mat[:,1]) != len(vout_mat[:,1]):
+                maxlen = min(max(vin.shape), max(vin.shape))
                 self.print_log(type='W', msg='Input and output voltage vectors are not of equal length, clipping both to %d samples' % maxlen)
                 vin=vin[0:maxlen]
                 vout=vout[0:maxlen]
-                freq=freq[0:maxlen]
         else: # Otherwise, plot only vout
             self.calc_tf=False
-        self.freq=freq
+        self.freq=vout_mat[:,0].real
         if self.calc_tf:
-            self.tf=vout/vin
+            return np.vstack((vout_mat[:,0], vout_mat[:,1]/vin_mat[:,1])).T
         else:
-            self.tf=vout
-        return
+            return vout_mat
 
     def shade_curve(self, data):
         '''
@@ -306,13 +301,21 @@ class bode_plot(rtl,spice,thesdk):
         # Input signal processing, check dimensions are correct, etc..
         # After calling this, transfer function and frequency points are 
         # available from their respective variables (see documentation)
-        self.check_input()
+        data=self.check_input()
         # Calculate magnitude and phase from transfer function
+        if self.phase_plot:
+            if self.squared:
+                phase_data=np.angle(data[:,1]**2, deg=self.degrees).real
+            else:
+                phase_data=np.angle(data[:,1], deg=self.degrees).real
         if self.squared:
-            mag_data=20*np.log10(np.abs(self.tf)**2)
+            data[:,1] = 20*np.log10(np.abs(data[:,1])**2)
+            self.tf=data
+            mag_data=data[:,1].real # to suppress errros while plotting (this still has imag part of 0j)
         else:
-            mag_data=20*np.log10(np.abs(self.tf))
-        phase_data=np.angle(self.tf, deg=self.degrees)
+            data[:,1] = 20*np.log10(np.abs(data[:,1]))
+            self.tf=data
+            mag_data=data[:,1].real
         # Get cutoff frequency
         self.cutoff=self.get_cutoff(mag_data)
         self.cutoff.sort()
@@ -442,7 +445,7 @@ if __name__=="__main__":
         duts.append(d) 
         d.model=model
         d.degrees=True
-        d.squared=False
+        d.squared=True
         d.IOS.Members['vout'].Data=vout
         d.IOS.Members['vin'].Data=vin
         d.save_fig=True
