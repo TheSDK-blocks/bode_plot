@@ -2,6 +2,11 @@
 THISDIR=$( cd `dirname $0` && pwd )
 MODULE=$( basename ${THISDIR})
 
+if [ ! -d figures ]; then
+    echo "Creating directory ./figures/"
+    mkdir -p figures
+fi
+
 #Defines TheSDK environment variables
 . ${THISDIR}/../../TheSDK.config
 
