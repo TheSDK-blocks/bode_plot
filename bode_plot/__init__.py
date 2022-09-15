@@ -28,7 +28,7 @@ from matplotlib.ticker import MultipleLocator, AutoMinorLocator, LogLocator
 from matplotlib.offsetbox import AnchoredText
 import numpy as np
 
-class bode_plot(rtl,spice,thesdk):
+class bode_plot(thesdk):
     @property
     def _classfile(self):
         return os.path.dirname(os.path.realpath(__file__)) + "/"+__name__
@@ -308,6 +308,7 @@ class bode_plot(rtl,spice,thesdk):
                 phase_data=np.angle(data[:,1]**2, deg=self.degrees).real
             else:
                 phase_data=np.angle(data[:,1], deg=self.degrees).real
+            self.phase_data=phase_data
         if self.squared:
             data[:,1] = 20*np.log10(np.abs(data[:,1])**2)
             self.tf=data
