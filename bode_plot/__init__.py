@@ -73,6 +73,10 @@ class bode_plot(thesdk):
                 Default: 3. Given relative to maximum.
             cutoff : List[float]
                 List containing detected cut-off frequencies
+            gain_margin : float
+                Difference between 180 degree point and UGF
+            phase_margin : float
+                180+phase value at UGF
             resp_type: string
                 Expected response type: "LP" | "HP" | "BP"
                 Used to find cutoffs
@@ -216,6 +220,19 @@ class bode_plot(thesdk):
         else:
             self.print_log(type='F', msg='Unsupported response type %s' % self.resp_type)
 
+    def get_margins(self, magdata,phasedata):
+        # Where the phase is closest to +-180 degrees
+        phase_pos=np.argmin(np.abs(np.abs(phasedata)-180))
+        # Where the amplitude is closest to 0dB
+        amp_pos=np.argmin(np.abs(magdata))
+        # Compute phase margin (180+phasedata)
+        self.phase_margin=180+phasedata[amp_pos]
+        # Compute gain margin (difference between -180 degree point to UGF)
+        self.gain_margin=magdata[amp_pos]-magdata[phase_pos]
+        self.print_log(type='I',msg=f"The phase margin is {self.phase_margin}")
+        self.print_log(type='I',msg=f"The gain margin is {self.gain_margin}")
+
+
     def check_input(self):
         '''
         Check that the input is of correct format. Expected is 2-by-m matrix where first colmun is freq and second is magnitude.
@@ -322,6 +339,8 @@ class bode_plot(thesdk):
         self.cutoff.sort()
         for f in self.cutoff:
             self.print_log(type='I', msg='Cut-off frequency is: %.4g Hz.' % f)        
+        # Get amplitude and phase margins
+        self.get_margins(mag_data,phase_data)
         # Update labels, if not already given:
         if self.mag_label is None:
             self.mag_label='Magnitude (dB)'
