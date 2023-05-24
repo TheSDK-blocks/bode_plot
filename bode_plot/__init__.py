@@ -82,6 +82,8 @@ class bode_plot(thesdk):
                 Used to find cutoffs
             annotate_cutoff: bool
                 Annotate cutoffs in figure?
+            annotate_margins: bool
+                Annotate amplitude and phase margins in figure?
             mag_plot: bool
                 Plot magnitude data
             mag_label: string
@@ -139,6 +141,7 @@ class bode_plot(thesdk):
         self.phase_plot=True # Draw phase plot?
         self.squared=False # If true, plot squared magnitude response
         self.annotate_cutoff=True # Annotate cut-off frequency?
+        self.annotate_margins=True # Annotate amplitude and phase margins?
         self.mag_label=None # Label for magnitude plot
         self.phase_label=None # Label for phase plot
         self.shade_area=False # True to shade area under curve between fstart and fstop
@@ -226,9 +229,9 @@ class bode_plot(thesdk):
         # Where the amplitude is closest to 0dB
         amp_pos=np.argmin(np.abs(magdata))
         # Compute phase margin (180+phasedata)
-        self.phase_margin=180+phasedata[amp_pos]
+        self.phase_margin=np.round(180+phasedata[amp_pos],1)
         # Compute gain margin (difference between -180 degree point to UGF)
-        self.gain_margin=magdata[amp_pos]-magdata[phase_pos]
+        self.gain_margin=np.round(magdata[amp_pos]-magdata[phase_pos],1)
         self.print_log(type='I',msg=f"The phase margin is {self.phase_margin}")
         self.print_log(type='I',msg=f"The gain margin is {self.gain_margin}")
 
@@ -374,6 +377,11 @@ class bode_plot(thesdk):
             ax[1].set_xlim(*self.xlim)
             ax[1].set_xscale(self.xscale)
             ax[1].grid(True, which='both') 
+            if self.annotate_margins:
+                ax[1].set_ylim(bottom=min(phase_data)) # This avoids vertical line from strecting the y-limit
+                ax[1].axvline(x=f, linestyle='--')
+                txt=AnchoredText(f'Gain margin: {self.gain_margin}dB\n Phase margin: {self.phase_margin}deg' , loc='lower center')
+                ax[1].add_artist(txt)
             if self.plot_title:
                 fig.suptitle(self.plot_title)
             if self.plot:
