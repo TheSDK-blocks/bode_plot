@@ -388,7 +388,10 @@ class bode_plot(thesdk):
                 ax[1].set_ylim(bottom=min(phase_data)) # This avoids vertical line from strecting the y-limit
                 if self.add_cutoff_line:
                     ax[1].axvline(x=f, linestyle='--')
-                txt=AnchoredText(f'GBW: {self.format_si_str(self.ugf)}Hz\n Gain margin: {self.gain_margin} dB\n Phase margin: {self.phase_margin}^\circ' , loc='lower center')
+                if self.degrees:
+                    txt=AnchoredText(f'GBW: {self.format_si_str(self.ugf)}Hz\n Gain margin: {self.gain_margin} dB\n Phase margin: {self.phase_margin}$^\circ$' , loc='lower center')
+                else:
+                    txt=AnchoredText(f'GBW: {self.format_si_str(self.ugf)}Hz\n Gain margin: {self.gain_margin} dB\n Phase margin: {self.phase_margin}rad' , loc='lower center')
                 ax[1].add_artist(txt)
             if self.plot_title:
                 fig.suptitle(self.plot_title)
