@@ -82,6 +82,8 @@ class bode_plot(thesdk):
                 Used to find cutoffs
             annotate_cutoff: bool
                 Annotate cutoffs in figure?
+            add_cutoff_line : bool
+                Add a line in the figure at cutoff point?
             annotate_margins: bool
                 Annotate amplitude and phase margins in figure?
             mag_plot: bool
@@ -141,6 +143,7 @@ class bode_plot(thesdk):
         self.phase_plot=True # Draw phase plot?
         self.squared=False # If true, plot squared magnitude response
         self.annotate_cutoff=True # Annotate cut-off frequency?
+        self.add_cutoff_line=True # Add a line to cutoff?
         self.annotate_margins=True # Annotate amplitude and phase margins?
         self.mag_label=None # Label for magnitude plot
         self.phase_label=None # Label for phase plot
@@ -228,6 +231,8 @@ class bode_plot(thesdk):
         phase_pos=np.argmin(np.abs(np.abs(phasedata)-180))
         # Where the amplitude is closest to 0dB
         amp_pos=np.argmin(np.abs(magdata))
+        # Unity gain frequency (where amp is 0dB)
+        self.ugf=self.freq[amp_pos]
         # Compute phase margin (180+phasedata)
         self.phase_margin=np.round(180+phasedata[amp_pos],1)
         # Compute gain margin (difference between -180 degree point to UGF)
@@ -368,8 +373,10 @@ class bode_plot(thesdk):
             if self.annotate_cutoff:
                 ax[0].set_ylim(bottom=min(mag_data)) # This avoids vertical line from strecting the y-limit
                 for i,f in enumerate(self.cutoff):
-                    ax[0].axvline(x=f, linestyle='--')
-                    txt=AnchoredText('$f_{c,%d}=$%sHz' % (i,self.format_si_str(f)), loc='lower center')
+                    if self.add_cutoff_line:
+                        ax[0].axvline(x=f, linestyle='--')
+                    txt=AnchoredText('$A_{DC}$=%3.1f dB\n $f_{c,%d}=$%sHz' % (max(mag_data),i,self.format_si_str(f)),
+                            loc='lower center')
                     ax[0].add_artist(txt)
             subfig2=ax[1].plot(self.freq,phase_data)
             ax[1].set_ylabel(self.phase_label) 
@@ -379,8 +386,9 @@ class bode_plot(thesdk):
             ax[1].grid(True, which='both') 
             if self.annotate_margins:
                 ax[1].set_ylim(bottom=min(phase_data)) # This avoids vertical line from strecting the y-limit
-                ax[1].axvline(x=f, linestyle='--')
-                txt=AnchoredText(f'Gain margin: {self.gain_margin}dB\n Phase margin: {self.phase_margin}deg' , loc='lower center')
+                if self.add_cutoff_line:
+                    ax[1].axvline(x=f, linestyle='--')
+                txt=AnchoredText(f'GBW: {self.format_si_str(self.ugf)}Hz\n Gain margin: {self.gain_margin} dB\n Phase margin: {self.phase_margin}^\circ' , loc='lower center')
                 ax[1].add_artist(txt)
             if self.plot_title:
                 fig.suptitle(self.plot_title)
