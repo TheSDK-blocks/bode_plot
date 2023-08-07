@@ -109,6 +109,8 @@ class bode_plot(thesdk):
             degrees: bool
                 If true, plot phase response in degrees rather than radians.
                 Default: true
+            dc_gain: float
+                Property storing the DC gain of the transfer function (in dB).
             xlim: Tuple(float, float)
                 If given, sets plot x-axis limits according to this
             xscale: string
@@ -139,6 +141,7 @@ class bode_plot(thesdk):
         self.cutoff = [] # Cutoff freq vector
         self.tf=None # The transfer function is stored in this variable
         self.cutoff_level=3 # The level from which the cutoff frequency is to be calculated from (default -3dB)
+        self.dc_gain=0 # DC gain
         self.mag_plot=True # Draw magnitude plot?
         self.phase_plot=True # Draw phase plot?
         self.squared=False # If true, plot squared magnitude response
@@ -342,6 +345,9 @@ class bode_plot(thesdk):
             data[:,1] = 20*np.log10(np.abs(data[:,1]))
             self.tf=data
             mag_data=data[:,1].real
+
+        self.dc_gain=mag_data[0]
+        self.print_log(type='I', msg='DC gain (extracted at freq. %.2g Hz) is %.2f dB' % (self.freq[0], self.dc_gain))
         # Get cutoff frequency
         self.cutoff=self.get_cutoff(mag_data)
         self.cutoff.sort()
