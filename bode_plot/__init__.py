@@ -375,7 +375,7 @@ class bode_plot(thesdk):
                 for i,f in enumerate(self.cutoff):
                     if self.add_cutoff_line:
                         ax[0].axvline(x=f, linestyle='--')
-                    txt=AnchoredText('$A_{DC}$=%3.1f dB\n $f_{c,%d}=$%sHz' % (max(mag_data),i,self.format_si_str(f)),
+                    txt=AnchoredText('$A_{DC}=$%3.1f dB\n $f_{c,%d}=$%sHz' % (max(mag_data),i,self.format_si_str(f)),
                             loc='lower center')
                     ax[0].add_artist(txt)
             subfig2=ax[1].plot(self.freq,phase_data)
