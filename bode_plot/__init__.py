@@ -450,7 +450,7 @@ class bode_plot(thesdk):
                 plt.pause(0.5)
         else:
             self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
-        if self.save_fig and (self.phase_plot or self.mag_plot) and self.plot:
+        if self.save_fig and (self.phase_plot or self.mag_plot):
             fig.savefig('%s.%s' % (self.save_path, self.figformat), format=self.figformat)
 
     def run(self,*arg):
