@@ -326,6 +326,9 @@ class bode_plot(thesdk):
         keys=sys.modules.keys()
         if 'plot_format' in keys and self.mag_plot and self.phase_plot:
             self.print_log(type='W', msg='plot_format module detected! Using plot_format may provide poor results when plotting mag. and phase to same plot!')
+            figsize=(1.1*3.5,1.25*1.8)
+            self.print_log(type='W', msg=f'Setting figure size to {figsize}')
+            plt.rcParams['figure.figsize'] = figsize
         # Input signal processing, check dimensions are correct, etc..
         # After calling this, transfer function and frequency points are 
         # available from their respective variables (see documentation)
@@ -397,8 +400,9 @@ class bode_plot(thesdk):
                 if self.degrees:
                     txt=AnchoredText(f'GBW: {self.format_si_str(self.ugf)}Hz\n Gain margin: {self.gain_margin} dB\n Phase margin: {self.phase_margin}$^\circ$' , loc='lower center')
                 else:
-                    txt=AnchoredText(f'GBW: {self.format_si_str(self.ugf)}Hz\n Gain margin: {self.gain_margin} dB\n Phase margin: {self.phase_margin}rad' , loc='lower center')
+                    txt=AnchoredText(f'GBW: {self.format_si_str(self.ugf)}Hz\n Gain margin: {self.gain_margin} dB\n Phase margin: {self.phase_margin} rad' , loc='lower center')
                 ax[1].add_artist(txt)
+            fig.align_ylabels(ax[:])
             if self.plot_title:
                 fig.suptitle(self.plot_title)
             if self.plot:
