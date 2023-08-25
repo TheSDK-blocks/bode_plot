@@ -248,8 +248,8 @@ class bode_plot(thesdk):
         '''
         Check that the input is of correct format. Expected is 2-by-m matrix where first colmun is freq and second is magnitude.
         '''
-        vout_mat=self.IOS.Members['vout'].Data
-        vin_mat=self.IOS.Members['vin'].Data
+        vout_mat=np.copy(self.IOS.Members['vout'].Data)
+        vin_mat=np.copy(self.IOS.Members['vin'].Data)
         nrows,ncols=vout_mat.shape
         if nrows==2 and ncols>2:
             vout_mat=vout_mat.transpose() # Make column vectors
