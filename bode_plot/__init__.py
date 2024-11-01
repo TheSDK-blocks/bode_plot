@@ -408,6 +408,8 @@ class bode_plot(thesdk):
             if self.plot:
                 plt.show(block=False)
                 plt.pause(0.5)
+            else:
+                plt.close(fig)
         elif self.mag_plot and not self.phase_plot:
             if self.reuse_fig:
                 fig=plt.gcf()
@@ -433,6 +435,8 @@ class bode_plot(thesdk):
             if self.plot:
                 plt.show(block=False)
                 plt.pause(0.5)
+            else:
+                plt.close(fig)
         elif self.phase_plot and not self.mag_plot:
             if self.reuse_fig:
                 fig=plt.gcf()
@@ -452,6 +456,8 @@ class bode_plot(thesdk):
             if self.plot:
                 plt.show(block=False)
                 plt.pause(0.5)
+            else:
+                plt.close(fig)
         else:
             self.print_log(type='I', msg='mag_plot and phase_plot flags were false: no plots produced!')
         if self.save_fig and (self.phase_plot or self.mag_plot):
