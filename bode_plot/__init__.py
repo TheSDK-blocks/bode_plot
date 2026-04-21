@@ -73,6 +73,12 @@ class bode_plot(thesdk):
                 Default: 3. Given relative to maximum.
             cutoff : List[float]
                 List containing detected cut-off frequencies
+            extract_freq: float
+                If not None, extract the gain (in dB) at this frequency and return it to extract_gain. 
+                Default: None
+            extract_gain: float
+                Gain (in dB) at extract_freq. 
+                Default: None
             gain_margin : float
                 Difference between 180 degree point and UGF
             phase_margin : float
@@ -90,6 +96,8 @@ class bode_plot(thesdk):
                 Plot magnitude data
             mag_label: string
                 Label of y-axis for magnitude plots
+            max_gain: tuple 
+                Maximum gain in dB stored as tuple with (freq, max_gain)
             phase_plot: bool
                 Plot phase data
             phase_label: string
@@ -129,6 +137,7 @@ class bode_plot(thesdk):
                 plotting multiple TF's in same figure. Currently
                 supported for either mag_data or phase_data only
                 (not both).
+
         """
         self.print_log(type='I', msg='Initializing %s' %(__name__)) 
         self.proplist = [  ];    # Properties that can be propagated from parent
@@ -162,6 +171,8 @@ class bode_plot(thesdk):
         self.save_fig=False
         self.save_path='../figures/bode_plot'
         self.reuse_fig=False # Plot current TF to active figure window? Useful for plotting multiple TF's in same figure
+        self.extract_freq=None
+        self.extract_gain=None
 
         # Table of order of magnitudes v. SI prefixes
         self.si_table = {
@@ -211,12 +222,16 @@ class bode_plot(thesdk):
 
     def get_cutoff(self, magdata):
         cutoff_level = self.cutoff_level
-        max_val=max(magdata)
+        max_gain_idx=np.argmax(magdata)
+        max_gain_freq=self.freq[max_gain_idx]
+        max_gain=magdata[max_gain_idx]
+        self.max_gain=(max_gain_freq, max_gain)
+
         if cutoff_level < 0:
             self.print_log(type='W', msg='Cut-off level given as negative! Converting to positive!')
             self.cutoff_level = -1 * self.cutoff_level
             cutoff_level=self.cutoff_level
-        cutoff_level = max_val - cutoff_level # Cut-off should be relative to maximum value 
+        cutoff_level = max_gain - cutoff_level # Cut-off should be relative to maximum value 
         arr=np.abs(magdata-cutoff_level)
         if self.resp_type.lower()=='lp' or self.resp_type.lower()=='hp':
             idx1=arr.argmin()
@@ -349,6 +364,11 @@ class bode_plot(thesdk):
             self.tf=data
             mag_data=data[:,1].real
 
+        if self.extract_freq:
+            arr = np.asarray(data, dtype=float)
+            idx = np.argmin(np.abs(arr[:,0].real-self.extract_freq))
+            self.extract_gain=arr[idx,1]
+            
         self.dc_gain=mag_data[0]
         self.print_log(type='I', msg='DC gain (extracted at freq. %.2g Hz) is %.2f dB' % (self.freq[0], self.dc_gain))
         # Get cutoff frequency
