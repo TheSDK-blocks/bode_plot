@@ -96,8 +96,8 @@ class bode_plot(thesdk):
                 Plot magnitude data
             mag_label: string
                 Label of y-axis for magnitude plots
-            max_gain: float
-                Maximum gain in dB
+            max_gain: tuple 
+                Maximum gain in dB stored as tuple with (freq, max_gain)
             phase_plot: bool
                 Plot phase data
             phase_label: string
@@ -225,7 +225,7 @@ class bode_plot(thesdk):
         max_gain_idx=np.argmax(magdata)
         max_gain_freq=self.freq[max_gain_idx]
         max_gain=magdata[max_gain_idx]
-        self.max_gain={'freq': max_gain_freq, 'max_gain': max_gain}
+        self.max_gain=(max_gain_freq, max_gain)
 
         if cutoff_level < 0:
             self.print_log(type='W', msg='Cut-off level given as negative! Converting to positive!')
